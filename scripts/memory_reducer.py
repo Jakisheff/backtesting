@@ -1,55 +1,63 @@
-"""Загрузка CSV с оптимизацией памяти для цен акций и индекса S&P 500."""
+import pandas as pd
+import numpy as np
 
-from __future__ import annotations  # future-совместимость аннотаций типов
+def reduce_memory_usage(df):
+    """
+    Уменьшает потребление памяти DataFrame.
+    ВАЖНО: Пропускает колонки 'date' и 'ticker', чтобы не испортить их.
+    """
+    start_mem = df.memory_usage().sum() / 1024**2
+    print(f'Memory usage of dataframe is {start_mem:.2f} MB')
 
-from pathlib import Path  # пути к файлам
-from typing import Dict, Tuple  # типы для подсказок
+    # Список колонок, которые НЕЛЬЗЯ трогать
+    # Приводим к нижнему регистру для сравнения
+    skip_cols = ['date', 'ticker', 'symbol', 'date', 'Date', 'Ticker']
 
-import numpy as np  # численные типы
-import pandas as pd  # таблицы и CSV
+    for col in df.columns:
+        # Если колонка в списке исключений - пропускаем
+        if col.lower() in [x.lower() for x in skip_cols]:
+            continue
 
+        col_type = df[col].dtype
 
+        # Если это не число (объект), пробуем превратить в число, 
+        # НО только если это не похоже на дату
+        if col_type == object:
+            try:
+                # Пробуем преобразовать, но если получится много NaN, откатываем назад
+                converted = pd.to_numeric(df[col], errors='coerce')
+                # Если более 50% данных стали NaN, значит это был текст (не число)
+                if converted.isna().sum() / len(converted) > 0.5:
+                    pass # Оставляем как есть (текст)
+                else:
+                    df[col] = converted
+                    col_type = df[col].dtype
+            except:
+                pass
 
+        # Оптимизация чисел
+        if col_type != object and not pd.api.types.is_datetime64_any_dtype(df[col]):
+            c_min = df[col].min()
+            c_max = df[col].max()
 
-def _reduce_mem_usage(df: pd.DataFrame) -> pd.DataFrame:
-    """Снизить потребление памяти DataFrame за счет даункаста типов."""
-    # Уменьшаем память: float -> float32, int -> меньший int, object -> category.
-    for col in df.columns:  # перебор колонок
-        if pd.api.types.is_datetime64_any_dtype(df[col]):  # дату не трогаем
-            continue  # переход к следующей колонке
-
-        if pd.api.types.is_numeric_dtype(df[col]):  # если числовая колонка
-            if pd.api.types.is_float_dtype(df[col]):  # float -> float32
-                df[col] = df[col].astype(np.float32)  # уменьшение памяти
+            if str(col_type)[:3] == 'int':
+                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+                    df[col] = df[col].astype(np.int8)
+                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+                    df[col] = df[col].astype(np.int16)
+                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+                    df[col] = df[col].astype(np.int32)
+                elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
+                    df[col] = df[col].astype(np.int64)
             else:
-                df[col] = pd.to_numeric(df[col], downcast="integer")  # int -> меньший int
-            continue  # числовую колонку обработали
+                # Используем float32 (требование ТЗ)
+                if c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+                    df[col] = df[col].astype(np.float32)
+                else:
+                    df[col] = df[col].astype(np.float64)
 
-        if df[col].dtype == object:  # текстовые колонки
-            num_unique = df[col].nunique(dropna=True)  # число уникальных
-            num_total = len(df[col])  # длина колонки
-            if num_total > 0 and num_unique / num_total < 0.5:  # мало уникальных
-                df[col] = df[col].astype("category")  # переводим в category
+    end_mem = df.memory_usage().sum() / 1024**2
+    print(f'Memory usage after optimization is: {end_mem:.2f} MB')
+    print(f'Decreased by {100 * (start_mem - end_mem) / start_mem:.1f}%')
 
-    return df  # возвращаем оптимизированный df
-
-
-def _read_csv(path: Path) -> pd.DataFrame:
-    """Прочитать CSV, распарсить даты и оптимизировать память."""
-    # Читаем CSV и приводим Date к datetime.
-    df = pd.read_csv(path)  # чтение CSV
-    if "Date" in df.columns:  # если есть колонка Date
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")  # парсинг дат
-    return _reduce_mem_usage(df)  # оптимизация памяти
-
-
-def memory_reducer(paths: Dict[str, str | Path]) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Загрузить цены и индекс S&P 500 с оптимизацией памяти."""
-    # Загружаем цены акций и S&P 500 с оптимизацией памяти.
-    prices_path = Path(paths["prices"]).expanduser()  # путь к ценам акций
-    sp500_path = Path(paths["sp500"]).expanduser()  # путь к индексу
-
-    prices = _read_csv(prices_path)  # загрузка и оптимизация цен
-    sp500 = _read_csv(sp500_path)  # загрузка и оптимизация индекса
-
-    return prices, sp500  # возвращаем два датафрейма
+    return df

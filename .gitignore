@@ -1,0 +1,30 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Data (Excluded as per best practices)
+data/*.csv
+data/*.xlsx
+data/*.json
+
+# Results (Excluded artifacts)
+results/*.txt
+results/plots/
+results/
+stats/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Temporary
+*.tmp
+*.log
+audit.py
+scripts/ultimate_audit.py
+scripts/validate_*.py

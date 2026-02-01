@@ -3,3 +3,7 @@ numpy==2.0.2
 matplotlib==3.9.4
 yfinance==0.2.43
 urllib3<2
+requests
+lxml
+openpyxl
+jupyter

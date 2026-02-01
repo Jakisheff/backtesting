@@ -4,7 +4,8 @@
 Данные приводятся к месячной частоте (берется последнее значение месяца), выбросы фильтруются, а пропуски заполняются внутри каждого тикера.
 
 ## Структура
-```
+
+```text
 .
 ├── data/
 │   ├── sp500.csv
@@ -19,6 +20,8 @@
 │       ├── avg_price_by_company.png
 │       └── strategy_vs_sp500.png
 ├── scripts/
+│   ├── data_generator.py
+│   ├── data_loader.py
 │   ├── backtester.py
 │   ├── create_signal.py
 │   ├── memory_reducer.py
@@ -28,16 +31,25 @@
 ```
 
 ## Установка (с чистого окружения)
-```
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
 ## Запуск
-```
-python3 scripts/main.py
-```
+
+1. **Генерация данных** (создание синтетических данных для теста):
+
+    ```bash
+    python3 scripts/data_generator.py
+    ```
+
+2. **Запуск пайплайна**:
+
+    ```bash
+    python3 scripts/main.py
+    ```
 Результаты сохраняются в `results/`:
 - `results.txt` — итоговый PnL и доходность стратегии и S&P 500
 - `outliers.txt` — первые 5 выбросов (ticker, date, price)
