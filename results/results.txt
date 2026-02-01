@@ -1,0 +1,7 @@
+Stock Picking 20:
+  Total PnL: 67.73
+  Total Return: 0.0217
+
+S&P 500:
+  Total PnL: 11.59
+  Total Return: 0.0032
