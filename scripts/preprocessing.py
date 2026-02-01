@@ -56,15 +56,20 @@ def _reshape_prices(prices: pd.DataFrame) -> pd.DataFrame:
     print(f"DEBUG: Reshaped long format shape: {prices_long.shape}")
     return prices_long.sort_index()
 
-def _filter_price_range(prices_long: pd.DataFrame) -> pd.DataFrame:
-    """Заменить нереалистичные цены на NaN."""
+def _filter_price_range(prices_long: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Заменить нереалистичные цены на NaN и вернуть найденные выбросы."""
     prices_long = prices_long.copy()
     mask = (prices_long["price"] < PRICE_MIN) | (prices_long["price"] > PRICE_MAX)
+    
+    # Сохраняем выбросы для отчета
+    price_outliers = prices_long[mask].copy().reset_index()
+    
     prices_long.loc[mask, "price"] = np.nan
     
     valid_count = prices_long['price'].notna().sum()
     print(f"DEBUG: Valid prices ($0.1 - $10k): {valid_count} (out of {len(prices_long)})")
-    return prices_long
+    print(f"DEBUG: Price outliers detected: {len(price_outliers)}")
+    return prices_long, price_outliers
 
 def _compute_returns(prices_long: pd.DataFrame) -> pd.DataFrame:
     """Добавить доходности."""
@@ -147,11 +152,15 @@ def preprocess_prices(prices: pd.DataFrame, results_dir: Path) -> pd.DataFrame:
     prices_long = _reshape_prices(prices)
     if prices_long.empty: return prices_long
     
-    prices_long = _filter_price_range(prices_long)
+    prices_long, price_outliers = _filter_price_range(prices_long)
     prices_long = _compute_returns(prices_long)
 
-    outliers = _detect_outliers(prices_long)
-    _save_outliers(outliers, results_dir / "outliers.txt")
+    return_outliers = _detect_outliers(prices_long)
+    
+    # Объединяем выбросы по цене и по доходности
+    all_outliers = pd.concat([price_outliers, return_outliers]).sort_values("date").head(5)
+    
+    _save_outliers(all_outliers, results_dir / "outliers.txt")
     plot_average_price(prices_long, results_dir, plot=False)
 
     prices_long = _replace_outlier_returns(prices_long)
